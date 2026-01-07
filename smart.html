@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Smart Ration Chatbot</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root{
+      --bg1:#232526; --bg2:#414345; --panel:#1e1e1e; --muted:#2b2b2b; --card:#292929;
+      --primary:#4caf50; --danger:#c62828; --text:#ffffff; --soft:#bbb;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; font-family:Arial,Helvetica,sans-serif; color:var(--text);
+      background:linear-gradient(to right,var(--bg1),var(--bg2)); height:100vh; overflow:hidden;
+    }
+    .page{display:none; width:100%; height:100%;}
+    .page.active{display:flex;}
+
+    /* Page 1: Welcome (emojis allowed here only) */
+    .cover{align-items:center; justify-content:center; flex-direction:column; gap:20px; text-align:center}
+    .cover h1{font-size:2.4rem; margin:0}
+    .cover button{
+      padding:12px 24px; background:var(--primary); border:none; border-radius:10px;
+      color:#000; font-weight:bold; cursor:pointer;
+    }
+
+    /* Page 2: Login */
+    .login{align-items:center; justify-content:center}
+    .login-box{
+      width:min(90%,360px); background:var(--panel); padding:28px; border-radius:14px;
+      box-shadow:0 10px 24px rgba(0,0,0,.45);
+    }
+    .login-box h2{margin:0 0 12px}
+    .login-box input{
+      width:100%; padding:10px 12px; border:none; border-radius:8px;
+      background:#333; color:var(--text); margin:8px 0 12px;
+    }
+    .login-box button{
+      width:100%; padding:12px; background:var(--primary); color:#000; font-weight:bold;
+      border:none; border-radius:10px; cursor:pointer;
+    }
+    .login-error{color:#ffb74d; min-height:20px; margin-top:6px; font-size:14px}
+
+    /* Page 3: Main (left list + right chat) */
+    .main{gap:0}
+    .user-panel{
+      width:340px; min-width:280px; background:var(--panel); border-right:2px solid var(--primary);
+      display:flex; flex-direction:column; padding:14px; overflow:hidden;
+    }
+    .user-panel h2{
+      margin:0 0 10px; text-align:center; border-bottom:1px solid var(--primary); padding-bottom:10px;
+    }
+    .user-list{flex:1; overflow:auto; padding-right:4px}
+    .user-item{
+      background:#333; border-radius:10px; padding:10px; margin-bottom:8px; cursor:pointer;
+      transition:.15s background; font-size:14px;
+    }
+    .user-item:hover,.user-item.active{background:var(--primary); color:#000; font-weight:bold}
+    .user-details{
+      background:var(--card); border-radius:10px; padding:10px; font-size:14px; line-height:1.4;
+      max-height:42%; overflow:auto;
+    }
+
+    .workspace{flex:1; display:flex; flex-direction:column; padding:14px; overflow:hidden}
+    .topbar{display:flex; gap:8px; margin-bottom:8px}
+    .topbar button{
+      background:var(--muted); color:#fff; border:none; border-radius:8px; cursor:pointer;
+      padding:8px 12px; font-weight:bold;
+    }
+    .topbar button.primary{background:var(--primary); color:#000}
+    .topbar button.danger{background:var(--danger)}
+    .chat-container{
+      flex:1; background:var(--panel); border-radius:14px; box-shadow:0 8px 20px rgba(0,0,0,.4);
+      display:flex; flex-direction:column; overflow:hidden;
+    }
+    .chat-box{
+      flex:1; padding:14px; overflow:auto; display:flex; flex-direction:column; gap:8px;
+    }
+    .message{
+      max-width:80%; padding:10px 14px; border-radius:14px; position:relative; word-wrap:break-word; font-size:14px;
+    }
+    .message.user{align-self:flex-end; background:var(--primary); color:#000; border-bottom-right-radius:6px}
+    .message.bot{align-self:flex-start; background:#333; border-bottom-left-radius:6px}
+    .timestamp{font-size:10px; color:var(--soft); margin-top:4px; text-align:right}
+    .input-area{display:flex; gap:8px; padding:10px; background:var(--muted)}
+    .input-area input{
+      flex:1; padding:10px 12px; border:none; border-radius:20px; outline:none; background:#444; color:#fff;
+    }
+    .input-area button{
+      background:var(--primary); color:#000; font-weight:bold; border:none; border-radius:10px; padding:10px 14px; cursor:pointer;
+    }
+    .reset-btn{
+      background:#b71c1c; color:#fff; font-weight:bold; border:none; border-radius:10px;
+      padding:8px 12px; cursor:pointer; margin:8px auto 0;
+      width:160px;
+    }
+
+    /* scrollbars */
+    .user-list::-webkit-scrollbar,.user-details::-webkit-scrollbar,.chat-box::-webkit-scrollbar{width:8px}
+    .user-list::-webkit-scrollbar-thumb,.user-details::-webkit-scrollbar-thumb,.chat-box::-webkit-scrollbar-thumb{background:var(--primary); border-radius:10px}
+    .user-list::-webkit-scrollbar-track,.user-details::-webkit-scrollbar-track,.chat-box::-webkit-scrollbar-track{background:#1e1e1e}
+  </style>
+</head>
+<body>
+
+  <!-- Page 1: Welcome (emojis allowed here) -->
+  <div id="coverPage" class="page cover active">
+    <h1>✨ Smart Ration Chatbot ✨</h1>
+    <button onclick="goToLogin()">Start</button>
+  </div>
+
+  <!-- Page 2: Login -->
+  <div id="loginPage" class="page login">
+    <div class="login-box">
+      <h2>Login</h2>
+      <input id="loginCard" type="text" placeholder="Ration Card Number (e.g., RC001)" />
+      <input id="loginPhone" type="password" placeholder="Password (Phone Number)" />
+      <button onclick="login()">Login</button>
+      <div id="loginError" class="login-error"></div>
+    </div>
+  </div>
+
+  <!-- Page 3: Main (Left panel + Right chatbot) -->
+  <div id="mainPage" class="page main">
+    <!-- Left panel -->
+    <div class="user-panel">
+      <h2>Ration Card Users</h2>
+      <div id="userList" class="user-list"></div>
+      <div id="userDetails" class="user-details"><em>Select a user from the list to see details.</em></div>
+    </div>
+
+    <!-- Right workspace -->
+    <div class="workspace">
+      <div class="topbar">
+        <button class="primary" onclick="showHelp()">Help</button>
+        <button onclick="startVoice()">Voice</button>
+        <button class="danger" onclick="logout()">Logout</button>
+      </div>
+
+      <div class="chat-container">
+        <div id="chatBox" class="chat-box"></div>
+        <button class="reset-btn" onclick="resetChat()">Reset Chat</button>
+        <div class="input-area">
+          <input id="userInput" type="text" placeholder="Type e.g. ‘RC006 stock’ or ‘restock’ or ‘timing’" />
+          <button onclick="sendMessage()">Send</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* =========================
+   DATASET (15 records)
+   Phone numbers end with RC last two digits
+   ========================= */
+const rationData = {
+  "RC001": { phone:"9876543201", name:"Ramesh Kumar", family:["Ramesh","Lakshmi","Rahul","Priya"], ages:[45,42,18,15], address:"Chennai, TN", type:"White Card", stock:{rice:"20kg",wheat:"10kg",sugar:"5kg",dal:"4kg"}, govt:"All members updated biometrics.", restock:"2025-09-01", timing:"9:00 AM – 5:00 PM", holidays:"Sundays and Govt holidays" },
+  "RC002": { phone:"9876543202", name:"Rajesh Raj", family:["Rajesh","Arun","Meena"], ages:[40,20,15], address:"Madurai, TN", type:"Green Card", stock:{rice:"15kg",wheat:"5kg",sugar:"3kg",dal:"2kg"}, govt:"Arun needs to update Aadhaar details.", restock:"2025-09-02", timing:"9:00 AM – 5:00 PM", holidays:"Sundays and Govt holidays" },
+  "RC003": { phone:"9876543203", name:"Vignesh B", family:["Vignesh","Anitha"], ages:[50,48], address:"Coimbatore, TN", type:"Yellow Card", stock:{rice:"10kg",wheat:"5kg",sugar:"2kg",dal:"1kg"}, govt:"Anitha pending biometric update.", restock:"2025-09-03", timing:"9:00 AM – 5:00 PM", holidays:"Sundays and Govt holidays" },
+  "RC004": { phone:"9876543204", name:"Priya M", family:["Priya","Senthil","Dinesh","Keerthi"], ages:[35,38,12,8], address:"Salem, TN", type:"White Card", stock:{rice:"18kg",wheat:"9kg",sugar:"4kg",dal:"3kg"}, govt:"All members updated biometrics.", restock:"2025-09-04", timing:"9:00 AM – 5:00 PM", holidays:"Sundays and Govt holidays" },
+  "RC005": { phone:"9876543205", name:"Arjun S", family:["Arjun","Deepa"], ages:[30,28], address:"Trichy, TN", type:"Green Card", stock:{rice:"12kg",wheat:"6kg",sugar:"2kg",dal:"2kg"}, govt:"Deepa needs Aadhaar update.", restock:"2025-09-05", timing:"9:00 AM – 5:00 PM", holidays:"Sundays and Govt holidays" },
+  "RC006": { phone:"9876543206", name:"Karthik R", family:["Karthik","Suma","Jaya"], ages:[55,50,25], address:"Thanjavur, TN", type:"Yellow Card", stock:{rice:"20kg",wheat:"10kg",sugar:"5kg",dal:"5kg"}, govt:"All good.", restock:"2025-09-06", timing:"9:00 AM – 5:00 PM", holidays:"Sundays and Govt holidays" },
+  "RC007": { phone:"9876543207", name:"Meena Devi", family:["Meena","Ravi"], ages:[60,65], address:"Erode, TN", type:"White Card", stock:{rice:"15kg",wheat:"7kg",sugar:"3kg",dal:"2kg"}, govt:"Ravi Aadhaar pending.", restock:"2025-09-07", timing:"9:00 AM – 5:00 PM", holidays:"Sundays and Govt holidays" },
+  "RC008": { phone:"9876543208", name:"Suresh K", family:["Suresh","Latha","Anil"], ages:[48,45,20], address:"Vellore, TN", type:"Green Card", stock:{rice:"16kg",wheat:"8kg",sugar:"4kg",dal:"2kg"}, govt:"All members updated biometrics.", restock:"2025-09-08", timing:"9:00 AM – 5:00 PM", holidays:"Sundays and Govt holidays" },
+  "RC009": { phone:"9876543209", name:"Divya R", family:["Divya","Gokul"], ages:[28,32], address:"Tirunelveli, TN", type:"Yellow Card", stock:{rice:"8kg",wheat:"4kg",sugar:"2kg",dal:"1kg"}, govt:"Biometric update required.", restock:"2025-09-09", timing:"9:00 AM – 5:00 PM", holidays:"Sundays and Govt holidays" },
+  "RC010": { phone:"9876543210", name:"Ravi S", family:["Ravi","Mala","Santhosh"], ages:[45,40,18], address:"Kanchipuram, TN", type:"White Card", stock:{rice:"19kg",wheat:"9kg",sugar:"5kg",dal:"4kg"}, govt:"All good.", restock:"2025-09-10", timing:"9:00 AM – 5:00 PM", holidays:"Sundays and Govt holidays" },
+
+  "RC011": { phone:"9876543211", name:"Swathi P", family:["Swathi","Prakash","Rohit"], ages:[36,40,10], address:"Nagapattinam, TN", type:"Green Card", stock:{rice:"14kg",wheat:"6kg",sugar:"3kg",dal:"2kg"}, govt:"Prakash Aadhaar update pending.", restock:"2025-09-11", timing:"9:00 AM – 5:00 PM", holidays:"Sundays and Govt holidays" },
+  "RC012": { phone:"9876543212", name:"Mohan L", family:["Mohan","Radha"], ages:[50,47], address:"Pondicherry", type:"Yellow Card", stock:{rice:"12kg",wheat:"6kg",sugar:"2kg",dal:"2kg"}, govt:"All good.", restock:"2025-09-12", timing:"9:00 AM – 5:00 PM", holidays:"Sundays and Govt holidays" },
+  "RC013": { phone:"9876543213", name:"Kavitha S", family:["Kavitha","Selva","Harini"], ages:[42,44,16], address:"Thoothukudi, TN", type:"White Card", stock:{rice:"17kg",wheat:"8kg",sugar:"3kg",dal:"3kg"}, govt:"Harini Aadhaar pending.", restock:"2025-09-13", timing:"9:00 AM – 5:00 PM", holidays:"Sundays and Govt holidays" },
+  "RC014": { phone:"9876543214", name:"Manoj K", family:["Manoj","Lalitha"], ages:[34,30], address:"Namakkal, TN", type:"Green Card", stock:{rice:"10kg",wheat:"5kg",sugar:"2kg",dal:"2kg"}, govt:"All good.", restock:"2025-09-14", timing:"9:00 AM – 5:00 PM", holidays:"Sundays and Govt holidays" },
+  "RC015": { phone:"9876543215", name:"Geetha M", family:["Geetha","Sankar","Vivek","Sneha"], ages:[38,42,12,8], address:"Dharmapuri, TN", type:"Yellow Card", stock:{rice:"18kg",wheat:"9kg",sugar:"4kg",dal:"3kg"}, govt:"Sneha biometric update pending.", restock:"2025-09-15", timing:"9:00 AM – 5:00 PM", holidays:"Sundays and Govt holidays" },
+  "RC016": { phone:"9876543216", name:"Kiran Raj", family:["Kiran","Deepika"], ages:[29,27], address:"Ariyalur, TN", type:"White Card", stock:{rice:"14kg",wheat:"6kg",sugar:"2kg",dal:"2kg"}, govt:"Deepika biometric pending.", restock:"2025-09-16", timing:"9:00 AM – 5:00 PM", holidays:"Sundays and Govt holidays" },
+  "RC017": { phone:"9876543217", name:"Harish V", family:["Harish","Sita","Kumar"], ages:[39,35,10], address:"Karur, TN", type:"Green Card", stock:{rice:"16kg",wheat:"8kg",sugar:"4kg",dal:"3kg"}, govt:"All good.", restock:"2025-09-17", timing:"9:00 AM – 5:00 PM", holidays:"Sundays and Govt holidays" },
+  "RC018": { phone:"9876543218", name:"Nisha R", family:["Nisha","Ragul"], ages:[33,37], address:"Ramanathapuram, TN", type:"Yellow Card", stock:{rice:"12kg",wheat:"5kg",sugar:"2kg",dal:"2kg"}, govt:"Ragul Aadhaar pending.", restock:"2025-09-18", timing:"9:00 AM – 5:00 PM", holidays:"Sundays and Govt holidays" },
+  "RC019": { phone:"9876543219", name:"Vijay L", family:["Vijay","Pavithra","Sathya"], ages:[46,42,19], address:"Virudhunagar, TN", type:"White Card", stock:{rice:"20kg",wheat:"10kg",sugar:"5kg",dal:"4kg"}, govt:"All good.", restock:"2025-09-19", timing:"9:00 AM – 5:00 PM", holidays:"Sundays and Govt holidays" },
+  "RC020": { phone:"9876543220", name:"Revathi S", family:["Revathi","Murali"], ages:[41,45], address:"Cuddalore, TN", type:"Green Card", stock:{rice:"15kg",wheat:"7kg",sugar:"3kg",dal:"2kg"}, govt:"Murali biometric update pending.", restock:"2025-09-20", timing:"9:00 AM – 5:00 PM", holidays:"Sundays and Govt holidays" },
+
+  "RC021": { phone:"9876543221", name:"Sundar M", family:["Sundar","Uma","Aravind"], ages:[52,49,22], address:"Tiruvannamalai, TN", type:"White Card", stock:{rice:"18kg",wheat:"9kg",sugar:"4kg",dal:"3kg"}, govt:"All members updated.", restock:"2025-09-21", timing:"9:00 AM – 5:00 PM", holidays:"Sundays and Govt holidays" },
+  "RC022": { phone:"9876543222", name:"Lakshmi V", family:["Lakshmi","Ramesh"], ages:[43,47], address:"Tenkasi, TN", type:"Yellow Card", stock:{rice:"10kg",wheat:"4kg",sugar:"2kg",dal:"2kg"}, govt:"All good.", restock:"2025-09-22", timing:"9:00 AM – 5:00 PM", holidays:"Sundays and Govt holidays" },
+  "RC023": { phone:"9876543223", name:"Deepak S", family:["Deepak","Kavitha","Renu"], ages:[35,32,8], address:"Perambalur, TN", type:"Green Card", stock:{rice:"14kg",wheat:"6kg",sugar:"3kg",dal:"2kg"}, govt:"Kavitha Aadhaar update pending.", restock:"2025-09-23", timing:"9:00 AM – 5:00 PM", holidays:"Sundays and Govt holidays" },
+  "RC024": { phone:"9876543224", name:"Preethi R", family:["Preethi","Rajan"], ages:[30,34], address:"Villupuram, TN", type:"White Card", stock:{rice:"16kg",wheat:"8kg",sugar:"4kg",dal:"2kg"}, govt:"All good.", restock:"2025-09-24", timing:"9:00 AM – 5:00 PM", holidays:"Sundays and Govt holidays" },
+  "RC025": { phone:"9876543225", name:"Saravanan K", family:["Saravanan","Uma","Devi"], ages:[44,40,14], address:"Nagarkoil, TN", type:"Yellow Card", stock:{rice:"17kg",wheat:"8kg",sugar:"3kg",dal:"3kg"}, govt:"Devi biometric pending.", restock:"2025-09-25", timing:"9:00 AM – 5:00 PM", holidays:"Sundays and Govt holidays" },
+  "RC026": { phone:"9876543226", name:"Gayathri S", family:["Gayathri","Sanjay"], ages:[37,40], address:"Pudukottai, TN", type:"Green Card", stock:{rice:"13kg",wheat:"6kg",sugar:"3kg",dal:"2kg"}, govt:"Sanjay Aadhaar pending.", restock:"2025-09-26", timing:"9:00 AM – 5:00 PM", holidays:"Sundays and Govt holidays" },
+  "RC027": { phone:"9876543227", name:"Balaji R", family:["Balaji","Kaviya"], ages:[48,45], address:"Nagercoil, TN", type:"White Card", stock:{rice:"20kg",wheat:"10kg",sugar:"5kg",dal:"5kg"}, govt:"All members updated biometrics.", restock:"2025-09-27", timing:"9:00 AM – 5:00 PM", holidays:"Sundays and Govt holidays" },
+  "RC028": { phone:"9876543228", name:"Sneha P", family:["Sneha","Praveen"], ages:[29,32], address:"Tirupur, TN", type:"Green Card", stock:{rice:"14kg",wheat:"6kg",sugar:"3kg",dal:"2kg"}, govt:"All good.", restock:"2025-09-28", timing:"9:00 AM – 5:00 PM", holidays:"Sundays and Govt holidays" },
+  "RC029": { phone:"9876543229", name:"Ragul D", family:["Ragul","Divya","Nithya"], ages:[38,36,12], address:"Theni, TN", type:"Yellow Card", stock:{rice:"16kg",wheat:"8kg",sugar:"4kg",dal:"3kg"}, govt:"Nithya biometric update pending.", restock:"2025-09-29", timing:"9:00 AM – 5:00 PM", holidays:"Sundays and Govt holidays" },
+  "RC030": { phone:"9876543230", name:"Bhuvana L", family:["Bhuvana","Sathish"], ages:[42,45], address:"Krishnagiri, TN", type:"White Card", stock:{rice:"19kg",wheat:"9kg",sugar:"4kg",dal:"4kg"}, govt:"All good.", restock:"2025-09-30", timing:"9:00 AM – 5:00 PM", holidays:"Sundays and Govt holidays" },
+
+  "RC031": { phone:"9876543231", name:"Rajesh T", family:["Rajesh","Latha"], ages:[40,38], address:"Dindigul, TN", type:"Green Card", stock:{rice:"15kg",wheat:"7kg",sugar:"3kg",dal:"2kg"}, govt:"All good.", restock:"2025-10-01", timing:"9:00 AM – 5:00 PM", holidays:"Sundays and Govt holidays" },
+  "RC032": { phone:"9876543232", name:"Anitha M", family:["Anitha","Murugan","Kiran"], ages:[35,40,12], address:"Thiruvarur, TN", type:"Yellow Card", stock:{rice:"13kg",wheat:"6kg",sugar:"3kg",dal:"2kg"}, govt:"Kiran Aadhaar pending.", restock:"2025-10-02", timing:"9:00 AM – 5:00 PM", holidays:"Sundays and Govt holidays" },
+  "RC033": { phone:"9876543233", name:"Selva K", family:["Selva","Jaya"], ages:[45,42], address:"Kanyakumari, TN", type:"White Card", stock:{rice:"20kg",wheat:"10kg",sugar:"5kg",dal:"4kg"}, govt:"All members updated.", restock:"2025-10-03", timing:"9:00 AM – 5:00 PM", holidays:"Sundays and Govt holidays" },
+  "RC034": { phone:"9876543234", name:"Mithra V", family:["Mithra","Suresh"], ages:[30,33], address:"Tirupathur, TN", type:"Green Card", stock:{rice:"12kg",wheat:"6kg",sugar:"2kg",dal:"2kg"}, govt:"All good.", restock:"2025-10-04", timing:"9:00 AM – 5:00 PM", holidays:"Sundays and Govt holidays" },
+  "RC035": { phone:"9876543235", name:"Vimal R", family:["Vimal","Anu","Riya"], ages:[38,35,10], address:"Ranipet, TN", type:"Yellow Card", stock:{rice:"14kg",wheat:"7kg",sugar:"3kg",dal:"2kg"}, govt:"Riya biometric update pending.", restock:"2025-10-05", timing:"9:00 AM – 5:00 PM", holidays:"Sundays and Govt holidays" },
+  "RC036": { phone:"9876543236", name:"Lavanya K", family:["Lavanya","Hari"], ages:[31,36], address:"Mayiladuthurai, TN", type:"White Card", stock:{rice:"18kg",wheat:"8kg",sugar:"4kg",dal:"3kg"}, govt:"All good.", restock:"2025-10-06", timing:"9:00 AM – 5:00 PM", holidays:"Sundays and Govt holidays" },
+  "RC037": { phone:"9876543237", name:"Sathish M", family:["Sathish","Meera","Rohit"], ages:[41,39,13], address:"Kallakurichi, TN", type:"Green Card", stock:{rice:"15kg",wheat:"7kg",sugar:"3kg",dal:"2kg"}, govt:"Meera Aadhaar pending.", restock:"2025-10-07", timing:"9:00 AM – 5:00 PM", holidays:"Sundays and Govt holidays" },
+  "RC038": { phone:"9876543238", name:"Radha P", family:["Radha","Gopi"], ages:[48,50], address:"Thiruchendur, TN", type:"Yellow Card", stock:{rice:"12kg",wheat:"6kg",sugar:"2kg",dal:"2kg"}, govt:"All members updated.", restock:"2025-10-08", timing:"9:00 AM – 5:00 PM", holidays:"Sundays and Govt holidays" },
+  "RC039": { phone:"9876543239", name:"Murugan S", family:["Murugan","Revathi","Kavin"], ages:[46,42,17], address:"Palladam, TN", type:"White Card", stock:{rice:"19kg",wheat:"9kg",sugar:"4kg",dal:"3kg"}, govt:"All good.", restock:"2025-10-09", timing:"9:00 AM – 5:00 PM", holidays:"Sundays and Govt holidays" },
+  "RC040": { phone:"9876543240", name:"Kalaivani R", family:["Kalaivani","Rajesh"], ages:[34,38], address:"Sivagangai, TN", type:"Green Card", stock:{rice:"14kg",wheat:"6kg",sugar:"3kg",dal:"2kg"}, govt:"Rajesh biometric pending.", restock:"2025-10-10", timing:"9:00 AM – 5:00 PM", holidays:"Sundays and Govt holidays" },
+
+  "RC041": { phone:"9876543241", name:"Siva N", family:["Siva","Meenakshi"], ages:[45,42], address:"Ambur, TN", type:"Yellow Card", stock:{rice:"13kg",wheat:"6kg",sugar:"3kg",dal:"2kg"}, govt:"All good.", restock:"2025-10-11", timing:"9:00 AM – 5:00 PM", holidays:"Sundays and Govt holidays" },
+  "RC042": { phone:"9876543242", name:"Priyanka S", family:["Priyanka","Ragul"], ages:[32,34], address:"Pollachi, TN", type:"White Card", stock:{rice:"17kg",wheat:"8kg",sugar:"4kg",dal:"3kg"}, govt:"All good.", restock:"2025-10-12", timing:"9:00 AM – 5:00 PM", holidays:"Sundays and Govt holidays" },
+  "RC043": { phone:"9876543243", name:"Madhan K", family:["Madhan","Divya","Sneha"], ages:[38,36,8], address:"Hosur, TN", type:"Green Card", stock:{rice:"15kg",wheat:"7kg",sugar:"3kg",dal:"2kg"}, govt:"Sneha Aadhaar update pending.", restock:"2025-10-13", timing:"9:00 AM – 5:00 PM", holidays:"Sundays and Govt holidays" },
+  "RC044": { phone:"9876543244", name:"Rani P", family:["Rani","Suresh"], ages:[47,49], address:"Udumalpet, TN", type:"Yellow Card", stock:{rice:"12kg",wheat:"5kg",sugar:"2kg",dal:"2kg"}, govt:"All good.", restock:"2025-10-14", timing:"9:00 AM – 5:00 PM", holidays:"Sundays and Govt holidays" },
+  "RC045": { phone:"9876543245", name:"Yogesh R", family:["Yogesh","Prema","Deva"], ages:[40,37,11], address:"Arakkonam, TN", type:"White Card", stock:{rice:"18kg",wheat:"9kg",sugar:"4kg",dal:"3kg"}, govt:"Deva biometric update pending.", restock:"2025-10-15", timing:"9:00 AM – 5:00 PM", holidays:"Sundays and Govt holidays" },
+  "RC046": { phone:"9876543246", name:"Nirmala S", family:["Nirmala","Sundar"], ages:[50,53], address:"Tambaram, TN", type:"Green Card", stock:{rice:"15kg",wheat:"7kg",sugar:"3kg",dal:"2kg"}, govt:"All good.", restock:"2025-10-16", timing:"9:00 AM – 5:00 PM", holidays:"Sundays and Govt holidays" },
+  "RC047": { phone:"9876543247", name:"Vasanth M", family:["Vasanth","Kaviya"], ages:[33,30], address:"Gudiyatham, TN", type:"Yellow Card", stock:{rice:"13kg",wheat:"6kg",sugar:"2kg",dal:"2kg"}, govt:"All members updated biometrics.", restock:"2025-10-17", timing:"9:00 AM – 5:00 PM", holidays:"Sundays and Govt holidays" },
+  "RC048": { phone:"9876543248", name:"Keerthi S", family:["Keerthi","Sathya","Gauri"], ages:[37,40,15], address:"Poonamallee, TN", type:"White Card", stock:{rice:"19kg",wheat:"9kg",sugar:"5kg",dal:"4kg"}, govt:"All good.", restock:"2025-10-18", timing:"9:00 AM – 5:00 PM", holidays:"Sundays and Govt holidays" },
+  "RC049": { phone:"9876543249", name:"Gokul R", family:["Gokul","Meena"], ages:[29,28], address:"Avadi, TN", type:"Green Card", stock:{rice:"14kg",wheat:"6kg",sugar:"3kg",dal:"2kg"}, govt:"All good.", restock:"2025-10-19", timing:"9:00 AM – 5:00 PM", holidays:"Sundays and Govt holidays" },
+  "RC050": { phone:"9854325076", name:"Chandru P", family:["Chandru","Anu","Hari"], ages:[35,33,9], address:"Chromepet, TN", type:"Yellow Card", stock:{rice:"15kg",wheat:"7kg",sugar:"3kg",dal:"2kg"}, govt:"Hari biometric pending.", restock:"2025-10-20", timing:"9:00 AM – 5:00 PM", holidays:"Sundays and Govt holidays" }
+};
+
+
+/* =========================
+   STATE
+   ========================= */
+let loggedInCard = null;      // Card used to login
+let selectedCard = null;      // Card selected from left list
+
+/* =========================
+   PAGE NAVIGATION
+   ========================= */
+function goToLogin(){
+  setActive('coverPage', false);
+  setActive('loginPage', true);
+}
+function logout(){
+  loggedInCard = null;
+  selectedCard = null;
+  document.getElementById('loginCard').value = '';
+  document.getElementById('loginPhone').value = '';
+  document.getElementById('loginError').textContent = '';
+  setActive('mainPage', false);
+  setActive('loginPage', true);
+}
+function setActive(id, on){
+  const el = document.getElementById(id);
+  if(on){ el.classList.add('active'); } else { el.classList.remove('active'); }
+}
+
+/* =========================
+   LOGIN
+   ========================= */
+function login(){
+  const card = (document.getElementById('loginCard').value || '').trim().toUpperCase();
+  const phone = (document.getElementById('loginPhone').value || '').trim();
+  const errorEl = document.getElementById('loginError');
+
+  if(rationData[card] && rationData[card].phone === phone){
+    loggedInCard = card;
+    errorEl.textContent = '';
+    setActive('loginPage', false);
+    setActive('mainPage', true);
+    populateUserList();
+    // Auto-select the logged-in card
+    const firstItem = document.querySelector(`[data-card="${card}"]`);
+    if(firstItem){ firstItem.click(); }
+    resetChat();
+  }else{
+    errorEl.textContent = 'Invalid Ration Card Number or Phone Number.';
+  }
+}
+
+/* =========================
+   LEFT PANEL: LIST + DETAILS
+   ========================= */
+const userListEl = document.getElementById('userList');
+const userDetailsEl = document.getElementById('userDetails');
+let selectedItemEl = null;
+
+function populateUserList(){
+  userListEl.innerHTML = '';
+  Object.keys(rationData).forEach(card=>{
+    const item = document.createElement('div');
+    item.className = 'user-item';
+    item.dataset.card = card;
+    item.textContent = `${card} - ${rationData[card].name}`;
+    item.onclick = () => selectUser(card, item);
+    userListEl.appendChild(item);
+  });
+}
+
+function selectUser(card, element){
+  if(selectedItemEl) selectedItemEl.classList.remove('active');
+  selectedItemEl = element;
+  selectedItemEl.classList.add('active');
+  selectedCard = card;
+
+  const d = rationData[card];
+  userDetailsEl.innerHTML = `
+    <b>Card Holder:</b> ${d.name}<br>
+    <b>Card No:</b> ${card}<br>
+    <b>Phone:</b> ${d.phone}<br>
+    <b>Family Members:</b> ${d.family.join(', ')}<br>
+    <b>Ages:</b> ${d.ages.join(', ')}<br>
+    <b>Address:</b> ${d.address}<br>
+    <b>Card Type:</b> ${d.type}<br>
+    <b>Stock Available:</b><br>
+    &nbsp;&nbsp;Rice: ${d.stock.rice}<br>
+    &nbsp;&nbsp;Wheat: ${d.stock.wheat}<br>
+    &nbsp;&nbsp;Sugar: ${d.stock.sugar}<br>
+    &nbsp;&nbsp;Dal: ${d.stock.dal}<br>
+    <b>Government Update:</b> ${d.govt}<br>
+    <b>Next Restock:</b> ${d.restock}<br>
+    <b>Shop Timing:</b> ${d.timing}<br>
+    <b>Holidays:</b> ${d.holidays}
+  `;
+  // Convenience: prefill input with the selected card
+  const userInput = document.getElementById('userInput');
+  userInput.value = card + ' ';
+  userInput.focus();
+}
+
+/* =========================
+   CHATBOT
+   ========================= */
+const chatBox = document.getElementById('chatBox');
+const userInput = document.getElementById('userInput');
+
+function getTime(){
+  const now = new Date();
+  return now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+}
+
+function addMessage(text, sender='bot'){
+  const msgDiv = document.createElement('div');
+  msgDiv.className = `message ${sender}`;
+  msgDiv.innerHTML = String(text).replace(/\n/g,'<br>');
+  const time = document.createElement('div');
+  time.className = 'timestamp';
+  time.textContent = getTime();
+  msgDiv.appendChild(time);
+  chatBox.appendChild(msgDiv);
+  chatBox.scrollTop = chatBox.scrollHeight;
+  return msgDiv;  // 👈 return so we can update later
+}
+
+
+function resetChat(){
+  chatBox.innerHTML = '';
+  addMessage('Welcome to the Smart Ration Chatbot. You can ask things like:<br>- RC005 details<br>- RC006 stock<br>- restock<br>- timing<br>- holidays<br>- govt update', 'bot');
+}
+
+function resolveTargetCard(msg){
+  // If message has RC number, use it; else selectedCard; else loggedInCard
+  const rcMatch = (msg || '').toUpperCase().match(/RC\d{3}/);
+  if(rcMatch && rationData[rcMatch[0]]) return rcMatch[0];
+  if(selectedCard && rationData[selectedCard]) return selectedCard;
+  if(loggedInCard && rationData[loggedInCard]) return loggedInCard;
+  return null;
+}
+
+function buildDetails(rc){
+  const d = rationData[rc];
+  return `
+    <b>Card Holder:</b> ${d.name}<br>
+    <b>Card No:</b> ${rc}<br>
+    <b>Phone:</b> ${d.phone}<br>
+    <b>Card Type:</b> ${d.type}<br>
+    <b>Address:</b> ${d.address}<br>
+    <b>Family Members:</b> ${d.family.join(', ')}<br>
+    <b>Ages:</b> ${d.ages.join(', ')}<br>
+    <b>Stock:</b> Rice ${d.stock.rice}, Wheat ${d.stock.wheat}, Sugar ${d.stock.sugar}, Dal ${d.stock.dal}<br>
+    <b>Government Update:</b> ${d.govt}<br>
+    <b>Next Restock:</b> ${d.restock}<br>
+    <b>Shop Timing:</b> ${d.timing}<br>
+    <b>Holidays:</b> ${d.holidays}
+  `;
+}
+
+function botProcess(msg){
+  const rc = resolveTargetCard(msg);
+  if(!rc){
+    delayedBotReply('Please include a ration card number (e.g., RC001) or click a user on the left.');
+    return;
+  }
+  const d = rationData[rc];
+  const lower = msg.toLowerCase();
+
+  if(/\b(restock|next\s*restock)\b/.test(lower)){
+    delayedBotReply(`<b>Next Restock for ${rc}:</b> ${d.restock}`);
+  } else if(/\b(stock|stocks|quota)\b/.test(lower)){
+    delayedBotReply(`
+      <b>Stock for ${rc}:</b><br>Rice: ${d.stock.rice}<br>Wheat: ${d.stock.wheat}<br>Sugar: ${d.stock.sugar}<br>Dal: ${d.stock.dal}
+    `);
+  } else if(/\b(govt|government).*update\b/.test(lower) || /\bgovt update\b/.test(lower) || /\bupdate\b/.test(lower)){
+    delayedBotReply(`<b>Government Update for ${rc}:</b> ${d.govt}`);
+  } else if(/\b(timing|hours?|time)\b/.test(lower)){
+    delayedBotReply(`<b>Shop Timing for ${rc}:</b> ${d.timing}`);
+  } else if(/\b(holiday|holidays|closed)\b/.test(lower)){
+    delayedBotReply(`<b>Holidays for ${rc}:</b> ${d.holidays}`);
+  } else if(/\bfamily\b/.test(lower)){
+    delayedBotReply(`<b>Family for ${rc}:</b> ${d.family.join(', ')}<br><b>Ages:</b> ${d.ages.join(', ')}`);
+  } else if(/\baddress\b/.test(lower)){
+    delayedBotReply(`<b>Address for ${rc}:</b> ${d.address}`);
+  } else if(/\b(type|card\s*type)\b/.test(lower)){
+    delayedBotReply(`<b>Card Type for ${rc}:</b> ${d.type}`);
+  } else if(/\b(details?|info|information)\b/.test(lower)){
+    delayedBotReply(buildDetails(rc));
+  } else {
+    delayedBotReply(`
+      <b>${rc} - ${d.name}</b><br>Type: ${d.type} | Address: ${d.address}<br>Family: ${d.family.join(', ')}
+    `);
+  }
+}
+function delayedBotReply(reply){
+  // Show "typing..." first
+  const typingMsg = addMessage("Bot is typing...", "bot");
+  // After 1.2 seconds, replace with actual reply
+  setTimeout(()=>{
+    typingMsg.innerHTML = reply;
+    const time = document.createElement('div');
+    time.className = 'timestamp';
+    time.textContent = getTime();
+    typingMsg.appendChild(time);
+    chatBox.scrollTop = chatBox.scrollHeight;
+  }, 1200);
+}
+
+
+function sendMessage(){
+  const msg = (userInput.value || '').trim();
+  if(!msg) return;
+  addMessage(msg, 'user');
+  userInput.value = '';
+  botProcess(msg);
+}
+
+userInput.addEventListener('keydown', e=>{
+  if(e.key === 'Enter') sendMessage();
+});
+
+/* =========================
+   HELP + VOICE
+   ========================= */
+function showHelp(){
+  alert(
+`How to use:
+
+• Click a card (RC001–RC015) on the left to view details.
+• Or type queries on the right. Examples:
+   - RC006 details
+   - RC005 stock
+   - RC010 restock
+   - timing
+   - holidays
+   - govt update
+   - family
+   - address
+   - type
+
+Tip: If you don't type an RC number, I use the selected card (or your login card).`
+  );
+}
+
+// Voice input (no emojis)
+function startVoice(){
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice recognition is not supported in this browser.'); return; }
+  const rec = new SR();
+  rec.lang = 'en-IN';
+  rec.interimResults = false;
+  rec.maxAlternatives = 1;
+  rec.onresult = (e)=>{
+    const text = e.results[0][0].transcript;
+    userInput.value = text;
+    sendMessage();
+  };
+  rec.onerror = ()=> alert('Voice recognition error.');
+  rec.start();
+}
+</script>
+</body>
+</html>
